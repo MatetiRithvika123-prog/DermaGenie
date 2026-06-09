@@ -38,6 +38,9 @@ pytesseract.pytesseract.tesseract_cmd = _find_tesseract()
 
 def extract_text_from_image(image_bytes: bytes) -> str:
     """Extract text from an image using Tesseract OCR, fallback to Gemini."""
+    import logging
+    import traceback
+    
     image = Image.open(io.BytesIO(image_bytes))
 
     # Convert to RGB if necessary (handles RGBA, palette images)
@@ -50,27 +53,30 @@ def extract_text_from_image(image_bytes: bytes) -> str:
         raw_text = pytesseract.image_to_string(image, config=custom_config)
         return raw_text
     except Exception as e:
-        print(f"Tesseract OCR failed or is missing ({str(e)}). Falling back to Gemini OCR.")
+        logging.error(f"Tesseract OCR failed ({type(e).__name__}: {str(e)}). Entering Gemini OCR fallback.")
         try:
             import google.generativeai as genai
             from app.config import settings
             
-            # Convert image to jpeg bytes for Gemini
-            img_byte_arr = io.BytesIO()
-            image.save(img_byte_arr, format='JPEG')
-            jpeg_bytes = img_byte_arr.getvalue()
+            logging.info(f"Gemini Fallback: API Key loaded: {bool(settings.GEMINI_API_KEY)}")
+            logging.info("Gemini Fallback: Initializing Gemini Vision for OCR Fallback.")
             
             genai.configure(api_key=settings.GEMINI_API_KEY)
             model = genai.GenerativeModel("gemini-2.0-flash")
+            
+            logging.info("Gemini Fallback: Sending PIL Image to Gemini 2.0 Flash.")
             response = model.generate_content([
                 "Extract all the text from this image. It is an ingredient list. Return only the raw text.",
-                {"mime_type": "image/jpeg", "data": jpeg_bytes}
+                image
             ])
             
+            logging.info("Gemini Fallback: Response received successfully.")
             if response.text:
                 return response.text
             return ""
         except Exception as gemini_e:
+            logging.error("Gemini OCR fallback failed with an exception:")
+            logging.error(traceback.format_exc())
             raise RuntimeError(f"Both Tesseract and Gemini OCR failed. Gemini Error: {str(gemini_e)}")
 
 

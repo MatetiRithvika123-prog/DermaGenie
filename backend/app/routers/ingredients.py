@@ -66,6 +66,10 @@ async def upload_ingredient_image(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        import logging
+        logging.error("Endpoint /api/ingredients/upload failed with an exception:")
+        logging.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"OCR processing failed: {str(e)}",
