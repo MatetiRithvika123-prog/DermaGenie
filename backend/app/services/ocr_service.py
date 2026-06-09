@@ -69,12 +69,11 @@ def extract_text_from_image(image_bytes: bytes) -> str:
             print("OCR STEP 5: Creating Gemini model")
             # Log model and version
             print(f"USING MODEL: gemini-2.0-flash")
-            import pkg_resources
+            from importlib.metadata import version
             try:
-                version = pkg_resources.get_distribution("google-generativeai").version
-                print(f"SDK VERSION: {version}")
-            except Exception:
-                pass
+                print("GOOGLE GENERATIVEAI VERSION:", version("google-generativeai"))
+            except Exception as e:
+                print("Could not determine SDK version:", e)
             
             model = genai.GenerativeModel("gemini-2.0-flash")
             
