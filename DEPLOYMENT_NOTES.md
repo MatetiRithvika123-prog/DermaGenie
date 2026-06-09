@@ -21,7 +21,7 @@ Provider: Supabase
 Engine: PostgreSQL
 
 Connection:
-postgresql+asyncpg://postgres.cojichdhuegbsfshboeq:Rishindra2005@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres
+postgresql+asyncpg://postgres.cojichdhuegbsfshboeq:[Password]@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres
 
 ## Known Production Behavior
 
