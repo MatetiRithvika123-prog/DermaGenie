@@ -38,14 +38,15 @@ pytesseract.pytesseract.tesseract_cmd = _find_tesseract()
 
 def extract_text_from_image(image_bytes: bytes) -> str:
     """Extract text from an image using Tesseract OCR, fallback to Gemini."""
-    import logging
     import traceback
     
+    print("OCR STEP 1: Image received")
     image = Image.open(io.BytesIO(image_bytes))
 
     # Convert to RGB if necessary (handles RGBA, palette images)
     if image.mode not in ("L", "RGB"):
         image = image.convert("RGB")
+    print("OCR STEP 2: PIL image loaded")
 
     try:
         # OCR with optimized config for ingredient lists
@@ -53,31 +54,49 @@ def extract_text_from_image(image_bytes: bytes) -> str:
         raw_text = pytesseract.image_to_string(image, config=custom_config)
         return raw_text
     except Exception as e:
-        logging.error(f"Tesseract OCR failed ({type(e).__name__}: {str(e)}). Entering Gemini OCR fallback.")
+        print("OCR STEP 3: Tesseract failed")
+        print(f"Tesseract Error: {str(e)}")
+        
         try:
+            print("OCR STEP 4: Initializing Gemini")
             import google.generativeai as genai
             from app.config import settings
             
-            logging.info(f"Gemini Fallback: API Key loaded: {bool(settings.GEMINI_API_KEY)}")
-            logging.info("Gemini Fallback: Initializing Gemini Vision for OCR Fallback.")
+            print(f"GEMINI KEY PRESENT: {bool(settings.GEMINI_API_KEY)}")
             
             genai.configure(api_key=settings.GEMINI_API_KEY)
+            
+            print("OCR STEP 5: Creating Gemini model")
+            # Log model and version
+            print(f"USING MODEL: gemini-2.0-flash")
+            import pkg_resources
+            try:
+                version = pkg_resources.get_distribution("google-generativeai").version
+                print(f"SDK VERSION: {version}")
+            except Exception:
+                pass
+            
             model = genai.GenerativeModel("gemini-2.0-flash")
             
-            logging.info("Gemini Fallback: Sending PIL Image to Gemini 2.0 Flash.")
+            print("OCR STEP 6: Sending image to Gemini")
             response = model.generate_content([
                 "Extract all the text from this image. It is an ingredient list. Return only the raw text.",
                 image
             ])
             
-            logging.info("Gemini Fallback: Response received successfully.")
+            print("OCR STEP 7: Gemini response received")
             if response.text:
                 return response.text
             return ""
         except Exception as gemini_e:
-            logging.error("Gemini OCR fallback failed with an exception:")
-            logging.error(traceback.format_exc())
-            raise RuntimeError(f"Both Tesseract and Gemini OCR failed. Gemini Error: {str(gemini_e)}")
+            import traceback
+            print("=" * 80)
+            print("GEMINI OCR FAILURE")
+            print(f"Exception Type: {type(gemini_e).__name__}")
+            print(f"Exception Message: {str(gemini_e)}")
+            traceback.print_exc()
+            print("=" * 80)
+            raise
 
 
 def clean_ocr_text(raw_text: str) -> str:
