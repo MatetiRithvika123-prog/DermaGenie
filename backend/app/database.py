@@ -6,17 +6,41 @@ from app.config import settings
 # If it contains the placeholder 'your_password' or 'your_project_ref', we know it's not configured
 DB_AVAILABLE = "your_password" not in settings.DATABASE_URL and "your_project_ref" not in settings.DATABASE_URL
 
+import urllib.parse
+
 # asyncpg does not accept the pgbouncer query parameter
 clean_db_url = settings.DATABASE_URL.replace("?pgbouncer=true&", "?").replace("?pgbouncer=true", "").replace("&pgbouncer=true", "")
 
-engine = create_async_engine(
-    clean_db_url,
-    echo=False,
-    pool_size=20,
-    max_overflow=10,
-    pool_pre_ping=True,
-    connect_args={"statement_cache_size": 0},
-)
+# MIGRATION: Switch from Transaction Pooler (6543) to Session Pooler (5432) to prevent DuplicatePreparedStatementError
+clean_db_url = clean_db_url.replace(":6543/", ":5432/")
+
+print("=" * 80)
+print("DATABASE CONFIGURATION DIAGNOSTICS")
+parsed_url = urllib.parse.urlparse(clean_db_url)
+print(f"HOST: {parsed_url.hostname}")
+print(f"PORT: {parsed_url.port}")
+print(f"PGBOUNCER REMOVED: {'pgbouncer' not in clean_db_url}")
+print(f"STATEMENT CACHE: Disabled (0)")
+print("=" * 80)
+
+from sqlalchemy.pool import NullPool
+
+# If they still forced 6543 somehow, use NullPool to prevent asyncpg from caching across connections
+is_transaction_pooler = "6543" in clean_db_url
+
+engine_kwargs = {
+    "echo": False,
+    "connect_args": {"statement_cache_size": 0},
+}
+
+if is_transaction_pooler:
+    engine_kwargs["poolclass"] = NullPool
+else:
+    engine_kwargs["pool_size"] = 20
+    engine_kwargs["max_overflow"] = 10
+    engine_kwargs["pool_pre_ping"] = True
+
+engine = create_async_engine(clean_db_url, **engine_kwargs)
 
 async_session_maker = async_sessionmaker(
     engine,
