@@ -22,9 +22,3 @@ Engine: PostgreSQL
 
 Connection:
 postgresql+asyncpg://postgres.cojichdhuegbsfshboeq:[Password]@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres
-
-## Known Production Behavior
-
-- Render does not have Tesseract installed.
-- OCR falls back to Gemini.
-- If Gemini quota is exceeded, fallback ingredients are used.
