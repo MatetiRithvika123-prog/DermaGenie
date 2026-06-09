@@ -37,18 +37,41 @@ pytesseract.pytesseract.tesseract_cmd = _find_tesseract()
 
 
 def extract_text_from_image(image_bytes: bytes) -> str:
-    """Extract text from an image using Tesseract OCR."""
+    """Extract text from an image using Tesseract OCR, fallback to Gemini."""
     image = Image.open(io.BytesIO(image_bytes))
 
     # Convert to RGB if necessary (handles RGBA, palette images)
     if image.mode not in ("L", "RGB"):
         image = image.convert("RGB")
 
-    # OCR with optimized config for ingredient lists
-    custom_config = r"--oem 3 --psm 6 -l eng"
-    raw_text = pytesseract.image_to_string(image, config=custom_config)
-
-    return raw_text
+    try:
+        # OCR with optimized config for ingredient lists
+        custom_config = r"--oem 3 --psm 6 -l eng"
+        raw_text = pytesseract.image_to_string(image, config=custom_config)
+        return raw_text
+    except Exception as e:
+        print(f"Tesseract OCR failed or is missing ({str(e)}). Falling back to Gemini OCR.")
+        try:
+            import google.generativeai as genai
+            from app.config import settings
+            
+            # Convert image to jpeg bytes for Gemini
+            img_byte_arr = io.BytesIO()
+            image.save(img_byte_arr, format='JPEG')
+            jpeg_bytes = img_byte_arr.getvalue()
+            
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            model = genai.GenerativeModel("gemini-2.0-flash")
+            response = model.generate_content([
+                "Extract all the text from this image. It is an ingredient list. Return only the raw text.",
+                {"mime_type": "image/jpeg", "data": jpeg_bytes}
+            ])
+            
+            if response.text:
+                return response.text
+            return ""
+        except Exception as gemini_e:
+            raise RuntimeError(f"Both Tesseract and Gemini OCR failed. Gemini Error: {str(gemini_e)}")
 
 
 def clean_ocr_text(raw_text: str) -> str:
