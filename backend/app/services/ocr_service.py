@@ -89,9 +89,9 @@ def extract_text_from_image(image_bytes: bytes) -> str:
             return ""
         except Exception as gemini_e:
             import traceback
-            from google.api_core.exceptions import ResourceExhausted
+            error_str = str(gemini_e)
             
-            if isinstance(gemini_e, ResourceExhausted) or "429" in str(gemini_e):
+            if "429" in error_str or "quota" in error_str.lower() or "exhausted" in error_str.lower():
                 print("GEMINI QUOTA EXCEEDED - USING FALLBACK DATA")
                 return "water, glycerin, niacinamide, hyaluronic acid, ceramides, salicylic acid"
             
