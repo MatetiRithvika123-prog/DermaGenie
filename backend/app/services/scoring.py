@@ -38,55 +38,120 @@ async def calculate_suitability_score(
             "harmful": [],
         }
 
-    # Fetch known ingredients from database
-    for ing_name in extracted_ingredients:
-        stmt = select(Ingredient).where(
-            Ingredient.ingredient_name.ilike(f"%{ing_name}%")
-        )
-        result = await db.execute(stmt)
-        db_ingredient = result.scalar_one_or_none()
+    # Fetch known ingredients
+    if db is None:
+        from app.seed.seed_data import INGREDIENTS_DATA
+        
+        class MockIngredient:
+            def __init__(self, d):
+                self.__dict__.update(d)
+            def __getattr__(self, name):
+                return None
+        
+        for ing_name in extracted_ingredients:
+            db_ingredient = None
+            for item in INGREDIENTS_DATA:
+                if ing_name.lower() in item["ingredient_name"].lower():
+                    db_ingredient = MockIngredient(item)
+                    break
+                    
+            if db_ingredient:
+                matched_count += 1
+                impact = _evaluate_ingredient(db_ingredient, skin_type, skin_issues, severity)
+                
+                if impact["type"] == "beneficial":
+                    beneficial.append({
+                        "name": db_ingredient.ingredient_name,
+                        "benefit": impact["reason"],
+                        "impact_percentage": impact["impact"],
+                    })
+                    score += impact["score_delta"]
+                elif impact["type"] == "harmful":
+                    harmful.append({
+                        "name": db_ingredient.ingredient_name,
+                        "reason": impact["reason"],
+                        "risk_level": impact["risk_level"],
+                    })
+                    score += impact["score_delta"]  # negative
+                else:
+                    score += 0.5
+    else:
+        for ing_name in extracted_ingredients:
+            stmt = select(Ingredient).where(
+                Ingredient.ingredient_name.ilike(f"%{ing_name}%")
+            )
+            result = await db.execute(stmt)
+            db_ingredient = result.scalar_one_or_none()
 
-        if db_ingredient:
-            matched_count += 1
-            impact = _evaluate_ingredient(db_ingredient, skin_type, skin_issues, severity)
+            if db_ingredient:
+                matched_count += 1
+                impact = _evaluate_ingredient(db_ingredient, skin_type, skin_issues, severity)
 
-            if impact["type"] == "beneficial":
-                beneficial.append({
-                    "name": db_ingredient.ingredient_name,
-                    "benefit": impact["reason"],
-                    "impact_percentage": impact["impact"],
-                })
-                score += impact["score_delta"]
-            elif impact["type"] == "harmful":
-                harmful.append({
-                    "name": db_ingredient.ingredient_name,
-                    "reason": impact["reason"],
-                    "risk_level": impact["risk_level"],
-                })
-                score += impact["score_delta"]  # negative
-            else:
-                # Neutral ingredient
-                score += 0.5  # slight positive for being recognized
+                if impact["type"] == "beneficial":
+                    beneficial.append({
+                        "name": db_ingredient.ingredient_name,
+                        "benefit": impact["reason"],
+                        "impact_percentage": impact["impact"],
+                    })
+                    score += impact["score_delta"]
+                elif impact["type"] == "harmful":
+                    harmful.append({
+                        "name": db_ingredient.ingredient_name,
+                        "reason": impact["reason"],
+                        "risk_level": impact["risk_level"],
+                    })
+                    score += impact["score_delta"]  # negative
+                else:
+                    # Neutral ingredient
+                    score += 0.5  # slight positive for being recognized
 
     # Fetch skin condition data for bonus scoring
-    for issue in skin_issues:
-        stmt = select(SkinCondition).where(
-            SkinCondition.condition_name.ilike(f"%{issue}%")
-        )
-        result = await db.execute(stmt)
-        condition = result.scalar_one_or_none()
-
-        if condition and condition.recommended_ingredients:
-            for rec_ing in condition.recommended_ingredients:
-                for ext_ing in extracted_ingredients:
-                    if rec_ing.lower() in ext_ing.lower():
-                        score += 3.0  # Bonus for condition-specific match
-
-        if condition and condition.avoid_ingredients:
-            for avoid_ing in condition.avoid_ingredients:
-                for ext_ing in extracted_ingredients:
-                    if avoid_ing.lower() in ext_ing.lower():
-                        score -= 5.0  # Penalty for condition-specific conflict
+    if db is None:
+        from app.seed.seed_data import SKIN_CONDITIONS_DATA
+        
+        class MockCondition:
+            def __init__(self, d):
+                self.__dict__.update(d)
+            def __getattr__(self, name):
+                return None
+                    
+        for issue in skin_issues:
+            condition = None
+            for item in SKIN_CONDITIONS_DATA:
+                if issue.lower() in item["condition_name"].lower():
+                    condition = MockCondition(item)
+                    break
+                    
+            if condition and getattr(condition, "recommended_ingredients", None):
+                for rec_ing in condition.recommended_ingredients:
+                    for ext_ing in extracted_ingredients:
+                        if rec_ing.lower() in ext_ing.lower():
+                            score += 3.0
+                            
+            if condition and getattr(condition, "avoid_ingredients", None):
+                for avoid_ing in condition.avoid_ingredients:
+                    for ext_ing in extracted_ingredients:
+                        if avoid_ing.lower() in ext_ing.lower():
+                            score -= 5.0
+    else:
+        for issue in skin_issues:
+            stmt = select(SkinCondition).where(
+                SkinCondition.condition_name.ilike(f"%{issue}%")
+            )
+            result = await db.execute(stmt)
+            condition = result.scalar_one_or_none()
+    
+            if condition and condition.recommended_ingredients:
+                for rec_ing in condition.recommended_ingredients:
+                    for ext_ing in extracted_ingredients:
+                        if rec_ing.lower() in ext_ing.lower():
+                            score += 3.0  # Bonus for condition-specific match
+    
+            if condition and condition.avoid_ingredients:
+                for avoid_ing in condition.avoid_ingredients:
+                    for ext_ing in extracted_ingredients:
+                        if avoid_ing.lower() in ext_ing.lower():
+                            score -= 5.0  # Penalty for condition-specific conflict
 
     # Severity adjustment: higher severity = stricter scoring
     if severity >= 7:

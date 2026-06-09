@@ -10,11 +10,19 @@ from app.routers import profile, skin_analysis, ingredients, analyze, results
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
-    await create_tables()
-    print("✅ Database tables created")
+    try:
+        await create_tables()
+        print("Database connected and tables verified")
+    except Exception as e:
+        import app.database
+        app.database.DB_AVAILABLE = False
+        print(f"Warning: Could not connect to the database or create tables.")
+        print(f"Detail: {str(e)}")
+        print(f"Make sure DATABASE_URL is configured correctly in .env. Falling back to in-memory mode.")
+    
     yield
     # Shutdown
-    print("👋 Application shutting down")
+    print("Application shutting down")
 
 
 app = FastAPI(

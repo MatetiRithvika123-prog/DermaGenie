@@ -354,17 +354,17 @@ export default function LandingPage() {
               {
                 icon: Mail,
                 title: "Email",
-                value: "support@dermagenie.ai",
+                value: "rithvikamateti@gmail.com",
               },
               {
                 icon: Phone,
                 title: "Phone",
-                value: "+1 (555) 123-4567",
+                value: "+91 6303941448",
               },
               {
                 icon: MapPin,
                 title: "Location",
-                value: "San Francisco, CA",
+                value: "Hyderabad, India",
               },
             ].map((contact, i) => (
               <motion.div

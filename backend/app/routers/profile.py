@@ -15,18 +15,30 @@ async def create_profile(
 ):
     """Create a new user session with profile data."""
     try:
-        session = Session(
-            id=uuid.uuid4(),
-            name=profile.name,
-            age=profile.age,
-            gender=profile.gender,
-            place=profile.place,
-        )
-        db.add(session)
-        await db.flush()
+        session_id = uuid.uuid4()
+        
+        if db is None:
+            from app.services.memory_store import memory_sessions
+            memory_sessions[str(session_id)] = {
+                "id": str(session_id),
+                "name": profile.name,
+                "age": profile.age,
+                "gender": profile.gender,
+                "place": profile.place,
+            }
+        else:
+            session = Session(
+                id=session_id,
+                name=profile.name,
+                age=profile.age,
+                gender=profile.gender,
+                place=profile.place,
+            )
+            db.add(session)
+            await db.flush()
 
         return ProfileResponse(
-            session_id=str(session.id),
+            session_id=str(session_id),
             message="Profile saved successfully",
         )
     except Exception as e:

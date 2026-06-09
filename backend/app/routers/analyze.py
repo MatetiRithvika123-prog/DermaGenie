@@ -24,12 +24,31 @@ async def analyze_product(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid session ID")
 
-    stmt = select(Session).where(Session.id == session_id)
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
+    if db is None:
+        from app.services.memory_store import memory_sessions
+        session_data = memory_sessions.get(str(session_id))
+        if not session_data:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        # Create a mock session object to keep the rest of the code the same
+        class MockSession:
+            pass
+        session = MockSession()
+        session.id = session_id
+        session.name = session_data.get("name")
+        session.age = session_data.get("age")
+        session.gender = session_data.get("gender")
+        session.skin_type = session_data.get("skin_type")
+        session.skin_issues = session_data.get("skin_issues")
+        session.issue_duration = session_data.get("issue_duration")
+        session.severity = session_data.get("severity")
+    else:
+        stmt = select(Session).where(Session.id == session_id)
+        result = await db.execute(stmt)
+        session = result.scalar_one_or_none()
 
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
 
     if not session.skin_type or not session.skin_issues:
         raise HTTPException(status_code=400, detail="Skin analysis not completed")
@@ -92,22 +111,38 @@ async def analyze_product(
             "Reduce processed foods",
         ])
 
-        # Step 3: Save results to database
-        analysis_result = AnalysisResult(
-            id=uuid.uuid4(),
-            session_id=session.id,
-            extracted_ingredients=request.ingredients,
-            suitability_score=score_result["score"],
-            score_category=score_result["category"],
-            beneficial_ingredients=score_result["beneficial"],
-            harmful_ingredients=score_result["harmful"],
-            ai_explanation=ai_result.get("ai_explanation", "Analysis completed."),
-            recommended_products=recommended_products,
-            skincare_routine=skincare_routine,
-            natural_precautions=natural_precautions,
-        )
-        db.add(analysis_result)
-        await db.flush()
+        # Step 3: Save results
+        if db is None:
+            from app.services.memory_store import memory_results
+            memory_results[str(session.id)] = {
+                "id": str(uuid.uuid4()),
+                "session_id": str(session.id),
+                "extracted_ingredients": request.ingredients,
+                "suitability_score": score_result["score"],
+                "score_category": score_result["category"],
+                "beneficial_ingredients": score_result["beneficial"],
+                "harmful_ingredients": score_result["harmful"],
+                "ai_explanation": ai_result.get("ai_explanation", "Analysis completed."),
+                "recommended_products": recommended_products,
+                "skincare_routine": skincare_routine,
+                "natural_precautions": natural_precautions,
+            }
+        else:
+            analysis_result = AnalysisResult(
+                id=uuid.uuid4(),
+                session_id=session.id,
+                extracted_ingredients=request.ingredients,
+                suitability_score=score_result["score"],
+                score_category=score_result["category"],
+                beneficial_ingredients=score_result["beneficial"],
+                harmful_ingredients=score_result["harmful"],
+                ai_explanation=ai_result.get("ai_explanation", "Analysis completed."),
+                recommended_products=recommended_products,
+                skincare_routine=skincare_routine,
+                natural_precautions=natural_precautions,
+            )
+            db.add(analysis_result)
+            await db.flush()
 
         # Build response
         return AnalysisResponse(

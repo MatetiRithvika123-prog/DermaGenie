@@ -21,26 +21,47 @@ async def get_results(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid session ID")
 
-    # Get session with profile data
-    stmt = select(Session).where(Session.id == sid)
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
+    if db is None:
+        from app.services.memory_store import memory_sessions, memory_results
+        
+        session_data = memory_sessions.get(str(sid))
+        if not session_data:
+            raise HTTPException(status_code=404, detail="Session not found")
+            
+        analysis_data = memory_results.get(str(sid))
+        if not analysis_data:
+            raise HTTPException(status_code=404, detail="No analysis results found for this session")
+            
+        class MockObj:
+            def __init__(self, d):
+                self.__dict__.update(d)
+            def __getattr__(self, name):
+                return None
+        
+        session = MockObj(session_data)
+        analysis = MockObj(analysis_data)
+        analysis.created_at = None
+    else:
+        # Get session with profile data
+        stmt = select(Session).where(Session.id == sid)
+        result = await db.execute(stmt)
+        session = result.scalar_one_or_none()
 
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
 
-    # Get latest analysis result
-    stmt = (
-        select(AnalysisResult)
-        .where(AnalysisResult.session_id == sid)
-        .order_by(AnalysisResult.created_at.desc())
-        .limit(1)
-    )
-    result = await db.execute(stmt)
-    analysis = result.scalar_one_or_none()
+        # Get latest analysis result
+        stmt = (
+            select(AnalysisResult)
+            .where(AnalysisResult.session_id == sid)
+            .order_by(AnalysisResult.created_at.desc())
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        analysis = result.scalar_one_or_none()
 
-    if not analysis:
-        raise HTTPException(status_code=404, detail="No analysis results found for this session")
+        if not analysis:
+            raise HTTPException(status_code=404, detail="No analysis results found for this session")
 
     return ResultsResponse(
         session_id=str(session.id),
