@@ -6,12 +6,16 @@ from app.config import settings
 # If it contains the placeholder 'your_password' or 'your_project_ref', we know it's not configured
 DB_AVAILABLE = "your_password" not in settings.DATABASE_URL and "your_project_ref" not in settings.DATABASE_URL
 
+# asyncpg does not accept the pgbouncer query parameter
+clean_db_url = settings.DATABASE_URL.replace("?pgbouncer=true&", "?").replace("?pgbouncer=true", "").replace("&pgbouncer=true", "")
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    clean_db_url,
     echo=False,
     pool_size=20,
     max_overflow=10,
     pool_pre_ping=True,
+    connect_args={"prepared_statement_cache_size": 0},
 )
 
 async_session_maker = async_sessionmaker(
