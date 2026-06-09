@@ -1,6 +1,17 @@
 import axios from "axios";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// Ensure API_BASE_URL does not end with /api so we don't get /api/api/ routes
+if (API_BASE_URL.endsWith('/api')) {
+  API_BASE_URL = API_BASE_URL.slice(0, -4);
+} else if (API_BASE_URL.endsWith('/api/')) {
+  API_BASE_URL = API_BASE_URL.slice(0, -5);
+}
+// Remove any trailing slash just in case
+if (API_BASE_URL.endsWith('/')) {
+  API_BASE_URL = API_BASE_URL.slice(0, -1);
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
