@@ -79,3 +79,7 @@ DermaGenie is a comprehensive, full-stack platform that empowers users to analyz
    npm run dev
    ```
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+
+Demo of dermaGenie
+https://derma-genie.vercel.app/
