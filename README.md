@@ -81,5 +81,6 @@ DermaGenie is a comprehensive, full-stack platform that empowers users to analyz
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 
-Demo of dermaGenie
+Demo of DermaGenie
 https://derma-genie.vercel.app/
+
